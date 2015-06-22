@@ -1,0 +1,58 @@
+diff -urNwB linux-2.6.25.8/arch/arm/boot/Makefile linux-2.6.25.8_EmbedSky/arch/arm/boot/Makefile
+--- linux-2.6.25.8/arch/arm/boot/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/boot/Makefile	2009-01-11 02:10:52.000000000 +0800
+@@ -55,6 +55,7 @@
+ 
+ $(obj)/zImage:	$(obj)/compressed/vmlinux FORCE
+ 	$(call if_changed,objcopy)
++	@cp -f arch/arm/boot/zImage zImage
+ 	@echo '  Kernel: $@ is ready'
+ 
+ endif
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:18:12.000000000 +0800
+@@ -159,7 +159,7 @@
+ static void __init smdk2440_map_io(void)
+ {
+ 	s3c24xx_init_io(smdk2440_iodesc, ARRAY_SIZE(smdk2440_iodesc));
+-	s3c24xx_init_clocks(16934400);
++	s3c24xx_init_clocks(12000000);
+ 	s3c24xx_init_uarts(smdk2440_uartcfgs, ARRAY_SIZE(smdk2440_uartcfgs));
+ }
+ 
+diff -urNwB linux-2.6.25.8/arch/arm/tools/mach-types linux-2.6.25.8_EmbedSky/arch/arm/tools/mach-types
+--- linux-2.6.25.8/arch/arm/tools/mach-types	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/tools/mach-types	2009-02-28 13:18:54.000000000 +0800
+@@ -376,7 +376,7 @@
+ ixp421_dnaeeth		ARCH_IXP421_DNAEETH	IXP421_DNAEETH		359
+ pocketserv9200		ARCH_POCKETSERV9200	POCKETSERV9200		360
+ toto			ARCH_TOTO		TOTO			361
+-s3c2440			ARCH_S3C2440		S3C2440			362
++s3c2440			ARCH_S3C2440		S3C2440			168
+ ks8695p			ARCH_KS8695P		KS8695P			363
+ se4000			ARCH_SE4000		SE4000			364
+ quadriceps		ARCH_QUADRICEPS		QUADRICEPS		365
+diff -urNwB linux-2.6.25.8/Makefile linux-2.6.25.8_EmbedSky/Makefile
+--- linux-2.6.25.8/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/Makefile	2009-01-11 02:13:56.000000000 +0800
+@@ -190,8 +190,8 @@
+ # Default value for CROSS_COMPILE is not to prefix executables
+ # Note: Some architectures assign CROSS_COMPILE in their arch/*/Makefile
+ export KBUILD_BUILDHOST := $(SUBARCH)
+-ARCH		?= $(SUBARCH)
+-CROSS_COMPILE	?=
++ARCH		?= arm
++CROSS_COMPILE	?= /opt/EmbedSky/crosstools_3.4.5_softfloat/gcc-3.4.5-glibc-2.3.6/arm-linux/bin/arm-linux-
+ 
+ # Architecture as present in compile.h
+ UTS_MACHINE 	:= $(ARCH)
+@@ -1153,7 +1153,7 @@
+ 		-o -name '*.bak' -o -name '#*#' -o -name '.*.orig' \
+ 		-o -name '.*.rej' -o -size 0 \
+ 		-o -name '*%' -o -name '.*.cmd' -o -name 'core' \) \
+-		-type f -print | xargs rm -f
++		-type f -print | xargs rm -f  rm zImage
+ 
+ 
+ # Packaging of the kernel to various formats

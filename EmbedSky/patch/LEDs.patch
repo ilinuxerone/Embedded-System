@@ -1,0 +1,244 @@
+diff -urNwB linux-2.6.25.8/arch/arm/plat-s3c24xx/common-smdk.c linux-2.6.25.8_EmbedSky/arch/arm/plat-s3c24xx/common-smdk.c
+--- linux-2.6.25.8/arch/arm/plat-s3c24xx/common-smdk.c	2009-02-28 13:50:25.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/plat-s3c24xx/common-smdk.c	2009-02-28 15:33:25.000000000 +0800
+@@ -48,7 +48,7 @@
+ #endif
+ 
+ /* LED devices */
+-
++#if 0
+ static struct s3c24xx_led_platdata smdk_pdata_led4 = {
+ 	.gpio		= S3C2410_GPF4,
+ 	.flags		= S3C24XX_LEDF_ACTLOW | S3C24XX_LEDF_TRISTATE,
+@@ -106,6 +106,7 @@
+ 		.platform_data = &smdk_pdata_led7,
+ 	},
+ };
++#endif
+ 
+ /* NAND parititon from 2.4.18-swl5 */
+ 
+@@ -192,10 +193,10 @@
+ 
+ static struct platform_device __initdata *smdk_devs[] = {
+ 	&s3c_device_nand,
+-	&smdk_led4,
+-	&smdk_led5,
+-	&smdk_led6,
+-	&smdk_led7,
++//	&smdk_led4,
++//	&smdk_led5,
++//	&smdk_led6,
++//	&smdk_led7,
+ #if defined(CONFIG_DM9000) || defined(CONFIG_DM9000_MODULE)
+ 	&s3c_device_dm9k,
+ #endif    
+@@ -205,15 +206,15 @@
+ {
+ 	/* Configure the LEDs (even if we have no LED support)*/
+ 
+-	s3c2410_gpio_cfgpin(S3C2410_GPF4, S3C2410_GPF4_OUTP);
+-	s3c2410_gpio_cfgpin(S3C2410_GPF5, S3C2410_GPF5_OUTP);
+-	s3c2410_gpio_cfgpin(S3C2410_GPF6, S3C2410_GPF6_OUTP);
+-	s3c2410_gpio_cfgpin(S3C2410_GPF7, S3C2410_GPF7_OUTP);
+-
+-	s3c2410_gpio_setpin(S3C2410_GPF4, 1);
+-	s3c2410_gpio_setpin(S3C2410_GPF5, 1);
+-	s3c2410_gpio_setpin(S3C2410_GPF6, 1);
+-	s3c2410_gpio_setpin(S3C2410_GPF7, 1);
++	s3c2410_gpio_cfgpin(S3C2410_GPB5, S3C2410_GPB5_OUTP);
++	s3c2410_gpio_cfgpin(S3C2410_GPB6, S3C2410_GPB6_OUTP);
++	s3c2410_gpio_cfgpin(S3C2410_GPB7, S3C2410_GPB7_OUTP);
++	s3c2410_gpio_cfgpin(S3C2410_GPB8, S3C2410_GPB8_OUTP);
++
++	s3c2410_gpio_setpin(S3C2410_GPB5, 0);
++	s3c2410_gpio_setpin(S3C2410_GPB6, 1);
++	s3c2410_gpio_setpin(S3C2410_GPB7, 0);
++	s3c2410_gpio_setpin(S3C2410_GPB8, 1);
+ 
+ 	if (machine_is_smdk2443())
+ 		smdk_nand_info.twrph0 = 50;
+diff -urNwB linux-2.6.25.8/drivers/char/EmbedSky_leds.c linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_leds.c
+--- linux-2.6.25.8/drivers/char/EmbedSky_leds.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_leds.c	2009-02-08 09:34:56.000000000 +0800
+@@ -0,0 +1,153 @@
++/*************************************
++
++NAME:EmbedSky_leds.c
++COPYRIGHT:www.embedsky.net
++
++*************************************/
++
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/delay.h>
++#include <asm/irq.h>
++#include <asm/arch/regs-gpio.h>
++#include <asm/hardware.h>
++#include <linux/device.h>
++
++#define DEVICE_NAME	"EmbedSky-leds"		/* 加载模式后，执行”cat /proc/devices”命令看到的设备名称 */
++#define LED_MAJOR	231			/* 主设备号 */
++
++/* 应用程序执行ioctl(fd, cmd, arg)时的第2个参数 */
++#define IOCTL_LED_ON	1
++#define IOCTL_LED_OFF	0
++
++/* 用来指定LED所用的GPIO引脚 */
++static unsigned long led_table [] =
++{
++	S3C2410_GPB5,
++	S3C2410_GPB6,
++	S3C2410_GPB7,
++	S3C2410_GPB8,
++};
++
++/* 用来指定GPIO引脚的功能：输出 */
++static unsigned int led_cfg_table [] =
++{
++	S3C2410_GPB5_OUTP,
++	S3C2410_GPB6_OUTP,
++	S3C2410_GPB7_OUTP,
++	S3C2410_GPB8_OUTP,
++};
++
++/* 应用程序对设备文件/dev/EmbedSky-leds执行open(...)时，
++ * 就会调用EmbedSky_leds_open函数
++ */
++static int EmbedSky_leds_open(struct inode *inode, struct file *file)
++{
++//	int i;
++
++//	for (i = 0; i < 4; i++)
++//	{
++		// 设置GPIO引脚的功能：本驱动中LED所涉及的GPIO引脚设为输出功能
++//		s3c2410_gpio_cfgpin(led_table[i], led_cfg_table[i]);
++//	}
++	return 0;
++}
++
++/* 应用程序对设备文件/dev/EmbedSky-leds执行ioclt(...)时，
++ * 就会调用EmbedSky_leds_ioctl函数
++ */
++static int EmbedSky_leds_ioctl( struct inode *inode, struct file *file, unsigned int cmd, unsigned long arg)
++{
++	if (arg > 4)
++	{
++		return -EINVAL;
++	}
++
++	switch(cmd)
++	{
++		case IOCTL_LED_ON:
++			// 设置指定引脚的输出电平为0
++			s3c2410_gpio_setpin(led_table[arg], 0);
++			return 0;
++
++		case IOCTL_LED_OFF:
++			// 设置指定引脚的输出电平为1
++			s3c2410_gpio_setpin(led_table[arg], 1);
++			return 0;
++
++		default:
++			return -EINVAL;
++	}
++}
++
++/* 这个结构是字符设备驱动程序的核心
++ * 当应用程序操作设备文件时所调用的open、read、write等函数，
++ * 最终会调用这个结构中指定的对应函数
++ */
++static struct file_operations EmbedSky_leds_fops =
++{
++	.owner  =   THIS_MODULE,    /* 这是一个宏，推向编译模块时自动创建的__this_module变量 */
++	.open   =   EmbedSky_leds_open,     
++	.ioctl  =   EmbedSky_leds_ioctl,
++};
++
++static char __initdata banner[] = "TQ2440/SKY2440 LEDS, (c) 2008,2009 www.embedsky.net\n";
++static struct class *led_class;
++
++/*
++ * 执行“insmod EmbedSky_leds.ko”命令时就会调用这个函数
++ */
++static int __init EmbedSky_leds_init(void)
++{
++	int ret;
++	printk(banner);
++
++	/* 注册字符设备驱动程序
++	 * 参数为主设备号、设备名字、file_operations结构；
++	 * 这样，主设备号就和具体的file_operations结构联系起来了，
++	 * 操作主设备为LED_MAJOR的设备文件时，就会调用EmbedSky_leds_fops中的相关成员函数
++	 * LED_MAJOR可以设为0，表示由内核自动分配主设备号
++	 */
++	ret = register_chrdev(LED_MAJOR, DEVICE_NAME, &EmbedSky_leds_fops);
++	if (ret < 0)
++	{
++		printk(DEVICE_NAME " can't register major number\n");
++		return ret;
++	}
++
++	//注册一个类，使mdev可以在"/dev/"目录下面建立设备节点
++	led_class = class_create(THIS_MODULE, DEVICE_NAME);
++	if(IS_ERR(led_class))
++	{
++		printk("Err: failed in EmbedSky-leds class. \n");
++		return -1;
++	}
++	//创建一个设备节点，节点名为DEVICE_NAME
++	class_device_create(led_class, NULL, MKDEV(LED_MAJOR, 0), NULL, DEVICE_NAME);
++
++	printk(DEVICE_NAME " initialized\n");
++	return 0;
++}
++
++/*
++ * 执行”rmmod EmbedSky_leds.ko”命令时就会调用这个函数 
++ */
++static void __exit EmbedSky_leds_exit(void)
++{
++	/* 卸载驱动程序 */
++	unregister_chrdev(LED_MAJOR, DEVICE_NAME);
++	class_device_destroy(led_class, MKDEV(LED_MAJOR, 0));	//删掉设备节点
++	class_destroy(led_class);					//注销类
++}
++
++/* 这两行指定驱动程序的初始化函数和卸载函数 */
++module_init(EmbedSky_leds_init);
++module_exit(EmbedSky_leds_exit);
++
++/* 描述驱动程序的一些信息，不是必须的 */
++MODULE_AUTHOR("http://www.embedsky.net");		// 驱动程序的作者
++MODULE_DESCRIPTION("TQ2440/SKY2440 LED Driver");	// 一些描述信息
++MODULE_LICENSE("GPL");					// 遵循的协议
++
+diff -urNwB linux-2.6.25.8/drivers/char/Kconfig linux-2.6.25.8_EmbedSky/drivers/char/Kconfig
+--- linux-2.6.25.8/drivers/char/Kconfig	2009-02-28 15:31:27.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Kconfig	2009-02-28 15:31:40.000000000 +0800
+@@ -10,6 +10,12 @@
+ 	help
+ 	  EmbedSky TQ2440/SKY2440 Hello.
+ 
++config EmbedSky_LEDS
++	tristate "TQ2440/SKY2440 LEDs Driver"
++	depends on ARCH_S3C2440
++	help
++	  EmbedSky TQ2440/SKY2440 User leds.
++
+ config VT
+ 	bool "Virtual terminal" if EMBEDDED
+ 	depends on !S390
+diff -urNwB linux-2.6.25.8/drivers/char/Makefile linux-2.6.25.8_EmbedSky/drivers/char/Makefile
+--- linux-2.6.25.8/drivers/char/Makefile	2009-02-28 15:31:27.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Makefile	2009-02-28 15:31:38.000000000 +0800
+@@ -10,6 +10,7 @@
+ obj-y	 += mem.o random.o tty_io.o n_tty.o tty_ioctl.o
+ 
+ obj-$(CONFIG_EmbedSky_HELLO)	+= EmbedSky_hello.o
++obj-$(CONFIG_EmbedSky_LEDS)	+= EmbedSky_leds.o
+ obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
+ obj-$(CONFIG_UNIX98_PTYS)	+= pty.o
+ obj-y				+= misc.o

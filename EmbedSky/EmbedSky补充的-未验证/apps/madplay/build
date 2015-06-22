@@ -1,0 +1,14 @@
+#! /bin/sh
+
+cd libid3tag-0.15.1b
+CC=arm-linux-gcc ./configure --host=arm-linux --prefix=`pwd`/../__install --disable-shared
+make && make install
+
+cd ../libmad-0.15.1b
+CC=arm-linux-gcc ./configure --host=arm-linux --prefix=`pwd`/../__install --disable-shared
+make && make install
+
+cd ../madplay-0.15.2b
+CC=arm-linux-gcc ./configure --host=arm-linux --prefix=`pwd`/../__install --disable-shared --enable-static CPPFLAGS=-I`pwd`/../__install/include LDFLAGS=-L`pwd`/../__install/lib
+make && arm-linux-strip madplay && make install
+

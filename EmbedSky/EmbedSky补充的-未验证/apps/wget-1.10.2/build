@@ -1,0 +1,20 @@
+#!/bin/sh
+
+if [ -f __install/bin/wget ] ; then
+	make distlcean
+fi
+
+if [ -d __install ] ; then
+	echo "the __install directory is already !"
+else
+	mkdir __install
+fi
+
+CC=arm-linux-gcc ./configure  --host=arm-linux --prefix=`pwd`/__install/
+make && make install
+
+if [ -f __install/bin/wget ] ; then
+	arm-linux-strip __install/bin/wget
+else
+	echo " build is faile ! "
+fi

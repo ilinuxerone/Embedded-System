@@ -1,0 +1,67 @@
+diff -urNwB linux-2.6.25.8/drivers/char/EmbedSky_hello.c linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_hello.c
+--- linux-2.6.25.8/drivers/char/EmbedSky_hello.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_hello.c	2009-02-07 15:37:30.000000000 +0800
+@@ -0,0 +1,36 @@
++/*************************************
++
++NAME:EmbedSky_hello.c
++COPYRIGHT:www.embedsky.net
++
++*************************************/
++
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/miscdevice.h>
++#include <linux/delay.h>
++#include <asm/irq.h>
++#include <asm/arch/regs-gpio.h>
++#include <asm/hardware.h>
++
++MODULE_LICENSE("GPL");                
++
++static int __init EmbedSky_hello_init(void)
++{
++
++    printk("<1>\n     Hello,EmbedSky!\n");
++    printk("<1>\nThis is first driver program.\n\n");
++
++    return 0;
++}
++
++static void __exit EmbedSky_hello_exit(void)
++{
++    printk("<1>\n     Exit!\n");
++    printk("<1>\nGoodbye EmbedSky!\n\n");
++}                                    
++
++module_init(EmbedSky_hello_init);
++module_exit(EmbedSky_hello_exit);
+diff -urNwB linux-2.6.25.8/drivers/char/Kconfig linux-2.6.25.8_EmbedSky/drivers/char/Kconfig
+--- linux-2.6.25.8/drivers/char/Kconfig	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Kconfig	2009-02-28 15:27:32.000000000 +0800
+@@ -4,6 +4,12 @@
+ 
+ menu "Character devices"
+ 
++config EmbedSky_HELLO
++	tristate "TQ2440/SKY2440 Hello Driver"
++	depends on ARCH_S3C2440
++	help
++	  EmbedSky TQ2440/SKY2440 Hello.
++
+ config VT
+ 	bool "Virtual terminal" if EMBEDDED
+ 	depends on !S390
+diff -urNwB linux-2.6.25.8/drivers/char/Makefile linux-2.6.25.8_EmbedSky/drivers/char/Makefile
+--- linux-2.6.25.8/drivers/char/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Makefile	2009-02-28 15:27:39.000000000 +0800
+@@ -9,6 +9,7 @@
+ 
+ obj-y	 += mem.o random.o tty_io.o n_tty.o tty_ioctl.o
+ 
++obj-$(CONFIG_EmbedSky_HELLO)	+= EmbedSky_hello.o
+ obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
+ obj-$(CONFIG_UNIX98_PTYS)	+= pty.o
+ obj-y				+= misc.o

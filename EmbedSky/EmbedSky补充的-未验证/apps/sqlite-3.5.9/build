@@ -1,0 +1,32 @@
+#!/bin/bash
+
+###############################################################
+##                                                           ##
+##                          黄健移植制作                               ##
+##                                                           ##
+###############################################################
+
+if [ -f Makefile ] ; then
+	make distclean
+fi
+
+if [ -d _install ] ; then
+	cd _install
+	rm -rf *
+	cd ..
+else
+	mkdir _install
+fi
+
+./configure --host=arm-linux --prefix=`pwd`/_install --disable-tcl
+make
+make install
+
+cd _install/lib/
+arm-linux-strip libsqlite3.so.0.8.6
+
+cd ../../sqlite_test
+make
+mv -f sqlite_test ../_install/bin/
+
+cd ..

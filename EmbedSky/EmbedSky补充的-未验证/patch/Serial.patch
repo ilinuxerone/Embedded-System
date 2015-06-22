@@ -1,0 +1,31 @@
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:24:48.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:39:45.000000000 +0800
+@@ -96,7 +96,7 @@
+ 		.hwport	     = 2,
+ 		.flags	     = 0,
+ 		.ucon	     = 0x3c5,
+-		.ulcon	     = 0x43,
++		.ulcon	     = 0x03,
+ 		.ufcon	     = 0x51,
+ 	}
+ };
+diff -urNwB linux-2.6.25.8/drivers/serial/s3c2410.c linux-2.6.25.8_EmbedSky/drivers/serial/s3c2410.c
+--- linux-2.6.25.8/drivers/serial/s3c2410.c	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/serial/s3c2410.c	2009-01-10 20:10:45.000000000 +0800
+@@ -515,6 +515,15 @@
+ 	dbg("s3c24xx_serial_startup: port=%p (%08lx,%p)\n",
+ 	    port->mapbase, port->membase);
+ 
++	if(port->line == 2)
++	{
++		s3c2410_gpio_cfgpin(S3C2410_GPH6, S3C2410_GPH6_TXD2);
++		s3c2410_gpio_pullup(S3C2410_GPH6, 1);
++
++		s3c2410_gpio_cfgpin(S3C2410_GPH7, S3C2410_GPH7_RXD2);
++		s3c2410_gpio_pullup(S3C2410_GPH7, 1);
++	}
++
+ 	rx_enabled(port) = 1;
+ 
+ 	ret = request_irq(RX_IRQ(port),

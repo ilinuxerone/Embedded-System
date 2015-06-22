@@ -1,0 +1,228 @@
+#!/bin/sh
+
+PATH=$HOME/usr/bin:$PATH
+export PATH
+
+device=${2:-"/dev/video0"}
+
+if [ $# -lt 1 ]
+then
+   echo "usage: tune <channel> [<device>]"
+   exit 1
+fi
+
+
+channel=`echo $1 | tr 'A-Z' 'a-z'`
+case $channel in
+ard)
+   freq=203850 
+   break
+   ;;
+zdf)
+   freq=217980 
+   break
+   ;;
+sf1)
+   freq=175600 
+   break
+   ;;
+sf2)
+   freq=210910 
+   break
+   ;;
+sfi)
+   freq=583230 
+   break
+   ;;
+orf1)
+   freq=133230 
+   break
+   ;;
+orf2)
+   freq=260350 
+   break
+   ;;
+3sat)
+   freq=351230 
+   break
+   ;;
+arte)
+   freq=471230 
+   break
+   ;;
+rtl)
+   freq=182660 
+   break
+   ;;
+rtl2)
+   freq=479230 
+   break
+   ;;
+superrtl)
+   freq=343230 
+   break
+   ;;
+sat1)
+   freq=288600 
+   break
+   ;;
+pro7)
+   freq=519230 
+   break
+   ;;
+vox)
+   freq=543230 
+   break
+   ;;
+kabel1)
+   freq=126160 
+   break
+   ;;
+b3)
+   freq=535230 
+   break
+   ;;
+bw)
+   freq=253290 
+   break
+   ;;
+wdr)
+   freq=383230 
+   break
+   ;;
+mdr)
+   freq=391230 
+   break
+   ;;
+tcm)
+   freq=335230 
+   break
+   ;;
+ntv)
+   freq=527230 
+   break
+   ;;
+euronews)
+   freq=319230 
+   break
+   ;;
+eurosport)
+   freq=274480 
+   break
+   ;;
+dsf)
+   freq=495230 
+   break
+   ;;
+cnn)
+   freq=246230 
+   break
+   ;;
+nbc)
+   freq=575230 
+   break
+   ;;
+bbc)
+   freq=559230 
+   freq=559250 
+   break
+   ;;
+tsr1)
+   freq=189730 
+   break
+   ;;
+tsr2)
+   freq=599230 
+   break
+   ;;
+tf1)
+   freq=239160 
+   break
+   ;;
+tv5)
+   freq=551230 
+   break
+   ;;
+france2)
+   freq=359230 
+   break
+   ;;
+france3)
+   freq=62600  
+   break
+   ;;
+canale5)
+   freq=503230 
+   break
+   ;;
+tsi1)
+   freq=196790 
+   break
+   ;;
+tsi2)
+   freq=281540 
+   break
+   ;;
+rai)
+   freq=154410 
+   break
+   ;;
+tve)
+   freq=225040 
+   break
+   ;;
+rtp)
+   freq=303230 
+   break
+   ;;
+tele)
+   freq=140290 
+   break
+   ;;
+startv)
+   freq=147350 
+   break
+   ;;
+viva)
+   freq=327230 
+   break
+   ;;
+mtv)
+   freq=295660 
+   break
+   ;;
+telezueri)
+   freq=161480 
+   break
+   ;;
+zueriplus)
+   freq=399230 
+   break
+   ;;
+homeshoppingeurope)
+   freq=232100 
+   break
+   ;;
+infokanal)
+   freq=267410 
+   break
+   ;;
+teleclub)
+   freq=48480  
+   break
+   ;;
+*)
+   freq=203850 
+   break
+   ;;
+esac
+
+echo "v4ltune ${device} ${freq}"
+v4ltune ${device} ${freq}
+echo "v4ltune ${device}"
+v4ltune ${device}
+#val=$(( ((${freq}*2)+62) / 125 ))
+#echo "ivtvctl --device=${device} --set-freq=${val}"
+#ivtvctl --device=${device} --set-freq=${val}
+#echo "ivtvctl --device=${device} --get-freq"
+#ivtvctl --device=${device} --get-freq

@@ -1,0 +1,1364 @@
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 14:29:57.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 14:55:05.000000000 +0800
+@@ -37,6 +37,7 @@
+ 
+ #include <asm/arch/idle.h>
+ #include <asm/arch/fb.h>
++#include <asm/arch/ts.h>
+ 
+ #include <asm/plat-s3c24xx/s3c2410.h>
+ #include <asm/plat-s3c24xx/s3c2440.h>
+@@ -255,6 +256,18 @@
+ 	.udc_command		= EmbedSky_udc_pullup,
+ };
+ 
++//touch screen
++struct platform_device s3c_device_ts = {
++	.name		  = "EmbedSky-ts",
++	.id		  = -1,
++};
++
++static struct EmbedSky_ts_mach_info EmbedSky_ts_info = {
++	.delay = 10000,
++	.presc = 49,
++	.oversampling_shift = 2,
++};
++
+ static struct platform_device *smdk2440_devices[] __initdata = {
+ 	&s3c_device_usb,
+ 	&s3c_device_lcd,
+@@ -262,6 +275,7 @@
+ 	&s3c_device_i2c,
+ 	&s3c_device_iis,
+ 	&s3c_device_usbgadget,
++	&s3c_device_ts,
+ };
+ 
+ static void __init smdk2440_map_io(void)
+@@ -274,6 +288,7 @@
+ static void __init smdk2440_machine_init(void)
+ {
+ 	s3c24xx_fb_set_platdata(&smdk2440_fb_info);
++	s3c_device_ts.dev.platform_data = &EmbedSky_ts_info;
+ 
+ 	platform_add_devices(smdk2440_devices, ARRAY_SIZE(smdk2440_devices));
+ 	smdk_machine_init();
+diff -urNwB linux-2.6.25.8/drivers/input/Kconfig linux-2.6.25.8_EmbedSky/drivers/input/Kconfig
+--- linux-2.6.25.8/drivers/input/Kconfig	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/Kconfig	2009-02-27 19:16:11.000000000 +0800
+@@ -114,6 +114,28 @@
+ 	  To compile this driver as a module, choose M here: the
+ 	  module will be called joydev.
+ 
++config INPUT_TSDEV
++	tristate "Touchscreen interface"
++	---help---
++	  Say Y here if you have an application that only can understand the
++	  Compaq touchscreen protocol for absolute pointer data. This is
++	  useful namely for embedded configurations.
++
++	  If unsure, say N.
++
++	  To compile this driver as a module, choose M here: the
++	  module will be called tsdev.
++
++config INPUT_TSDEV_SCREEN_X
++	int "Horizontal screen resolution"
++	depends on INPUT_TSDEV
++	default "1024"
++
++config INPUT_TSDEV_SCREEN_Y
++	int "Vertical screen resolution"
++	depends on INPUT_TSDEV
++	default "768"
++
+ config INPUT_EVDEV
+ 	tristate "Event interface"
+ 	help
+diff -urNwB linux-2.6.25.8/drivers/input/Makefile linux-2.6.25.8_EmbedSky/drivers/input/Makefile
+--- linux-2.6.25.8/drivers/input/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/Makefile	2009-02-13 15:20:31.000000000 +0800
+@@ -13,6 +13,7 @@
+ obj-$(CONFIG_INPUT_MOUSEDEV)	+= mousedev.o
+ obj-$(CONFIG_INPUT_JOYDEV)	+= joydev.o
+ obj-$(CONFIG_INPUT_EVDEV)	+= evdev.o
++obj-$(CONFIG_INPUT_TSDEV)	+= tsdev.o
+ obj-$(CONFIG_INPUT_EVBUG)	+= evbug.o
+ 
+ obj-$(CONFIG_INPUT_KEYBOARD)	+= keyboard/
+diff -urNwB linux-2.6.25.8/drivers/input/touchscreen/EmbedSky_ts.c linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/EmbedSky_ts.c
+--- linux-2.6.25.8/drivers/input/touchscreen/EmbedSky_ts.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/EmbedSky_ts.c	2009-02-27 18:56:34.000000000 +0800
+@@ -0,0 +1,352 @@
++/*
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
++ *
++ * Copyright (c) 2004 Arnaud Patard <arnaud.patard@rtp-net.org>
++ * iPAQ H1940 touchscreen support
++ *
++ * ChangeLog
++ *
++ * 2004-09-05: Herbert Pötzl <herbert@13thfloor.at>
++ *	- added clock (de-)allocation code
++ *
++ * 2005-03-06: Arnaud Patard <arnaud.patard@rtp-net.org>
++ *      - h1940_ -> s3c2410 (this driver is now also used on the n30
++ *        machines :P)
++ *      - Debug messages are now enabled with the config option
++ *        TOUCHSCREEN_EmbedSky_DEBUG
++ *      - Changed the way the value are read
++ *      - Input subsystem should now work
++ *      - Use ioremap and readl/writel
++ *
++ */  
++
++#include <linux/autoconf.h>
++#include <linux/errno.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/slab.h>
++#include <linux/input.h>
++#include <linux/init.h>
++#include <linux/serio.h>
++#include <linux/delay.h>
++#include <asm/io.h>
++#include <asm/irq.h>
++
++#include <linux/platform_device.h>
++
++
++#include <asm/plat-s3c/regs-adc.h>
++#include <asm/arch/regs-gpio.h>
++#include <asm/arch/ts.h>
++#include <asm/hardware/clock.h>
++
++/* For ts.dev.id.version */
++#define S3C2410TSVERSION	0x0101
++
++#define WAIT4INT(x)  (((x)<<8) | \
++		     S3C2410_ADCTSC_YM_SEN | S3C2410_ADCTSC_YP_SEN | S3C2410_ADCTSC_XP_SEN | \
++		     S3C2410_ADCTSC_XY_PST(3))
++
++#define AUTOPST	     (S3C2410_ADCTSC_YM_SEN | S3C2410_ADCTSC_YP_SEN | S3C2410_ADCTSC_XP_SEN | \
++		     S3C2410_ADCTSC_AUTO_PST | S3C2410_ADCTSC_XY_PST(0))
++
++#define DEBUG_LVL    KERN_DEBUG
++
++/*
++ * Definitions & global arrays.
++ */
++
++
++static char *EmbedSky_ts_name = "EmbedSky TouchScreen";
++
++/*
++ * Per-touchscreen data.
++ */
++
++struct EmbedSky_ts {
++	struct input_dev *dev;
++	long xp;
++	long yp;
++	int count;
++	int shift;
++	char phys[32];
++};
++
++static struct EmbedSky_ts ts;
++static void __iomem *base_addr;
++
++static inline void EmbedSky_ts_connect(void)
++{
++	s3c2410_gpio_cfgpin(S3C2410_GPG12, S3C2410_GPG12_XMON);
++	s3c2410_gpio_cfgpin(S3C2410_GPG13, S3C2410_GPG13_nXPON);
++	s3c2410_gpio_cfgpin(S3C2410_GPG14, S3C2410_GPG14_YMON);
++	s3c2410_gpio_cfgpin(S3C2410_GPG15, S3C2410_GPG15_nYPON);
++}
++
++static void touch_timer_fire(unsigned long data)
++{
++  	unsigned long data0;
++  	unsigned long data1;
++	int updown;
++
++  	data1 = readl(base_addr+S3C2410_ADCDAT0);
++  	data0 = readl(base_addr+S3C2410_ADCDAT1);
++
++ 	updown = (!(data0 & S3C2410_ADCDAT0_UPDOWN)) && (!(data1 & S3C2410_ADCDAT0_UPDOWN));
++
++ 	if (updown) {
++ 		if (ts.count != 0) {
++ 			ts.xp >>= ts.shift;
++ 			ts.yp >>= ts.shift;
++
++#ifdef CONFIG_TOUCHSCREEN_EmbedSky_DEBUG
++ 			{
++ 				struct timeval tv;
++ 				do_gettimeofday(&tv);
++				printk("Touch screen info:");	
++ 				printk(DEBUG_LVL "T: %06d, X: %03ld, Y: %03ld\n", (int)tv.tv_usec, ts.xp, ts.yp);
++ 			}
++#endif
++
++ 			input_report_abs(ts.dev, ABS_X, ts.xp);
++ 			input_report_abs(ts.dev, ABS_Y, ts.yp);
++
++ 			input_report_key(ts.dev, BTN_TOUCH, 1);
++ 			input_report_abs(ts.dev, ABS_PRESSURE, 1);
++ 			input_sync(ts.dev);
++ 		}
++
++ 		ts.xp = 0;
++ 		ts.yp = 0;
++ 		ts.count = 0;
++
++ 		writel(S3C2410_ADCTSC_PULL_UP_DISABLE | AUTOPST, base_addr+S3C2410_ADCTSC);
++ 		writel(readl(base_addr+S3C2410_ADCCON) | S3C2410_ADCCON_ENABLE_START, base_addr+S3C2410_ADCCON);
++ 	} else {
++ 		ts.count = 0;
++
++ 		input_report_key(ts.dev, BTN_TOUCH, 0);
++ 		input_report_abs(ts.dev, ABS_PRESSURE, 0);
++ 		input_sync(ts.dev);
++
++ 		writel(WAIT4INT(0), base_addr+S3C2410_ADCTSC);
++ 	}
++}
++
++static struct timer_list touch_timer =
++		TIMER_INITIALIZER(touch_timer_fire, 0, 0);
++
++static irqreturn_t stylus_updown(int irq, void *dev_id, struct pt_regs *regs)
++{
++	unsigned long data0;
++	unsigned long data1;
++	int updown;
++
++	data1 = readl(base_addr+S3C2410_ADCDAT0);
++	data0 = readl(base_addr+S3C2410_ADCDAT1);
++
++	updown = (!(data0 & S3C2410_ADCDAT0_UPDOWN)) && (!(data1 & S3C2410_ADCDAT0_UPDOWN));
++
++	/* TODO we should never get an interrupt with updown set while
++	 * the timer is running, but maybe we ought to verify that the
++	 * timer isn't running anyways. */
++
++	if (updown)
++		touch_timer_fire(0);
++
++	return IRQ_HANDLED;
++}
++
++
++static irqreturn_t stylus_action(int irq, void *dev_id, struct pt_regs *regs)
++{
++	unsigned long data0;
++	unsigned long data1;
++
++	data1 = readl(base_addr+S3C2410_ADCDAT0);
++	data0 = readl(base_addr+S3C2410_ADCDAT1);
++
++	ts.xp += data0 & S3C2410_ADCDAT0_XPDATA_MASK;
++	ts.yp += data1 & S3C2410_ADCDAT1_YPDATA_MASK;
++	ts.count++;
++
++        if (ts.count < (1<<ts.shift)) {
++		writel(S3C2410_ADCTSC_PULL_UP_DISABLE | AUTOPST, base_addr+S3C2410_ADCTSC);
++		writel(readl(base_addr+S3C2410_ADCCON) | S3C2410_ADCCON_ENABLE_START, base_addr+S3C2410_ADCCON);
++	} else {
++		mod_timer(&touch_timer, jiffies+1);
++		writel(WAIT4INT(1), base_addr+S3C2410_ADCTSC);
++	}
++
++	return IRQ_HANDLED;
++}
++
++static struct clk	*adc_clock;
++
++/*
++ * The functions for inserting/removing us as a module.
++ */
++
++static int __init EmbedSky_ts_probe(struct device *dev)
++{
++	struct EmbedSky_ts_mach_info *info;
++
++	info = ( struct EmbedSky_ts_mach_info *)dev->platform_data;
++
++	if (!info)
++	{
++		printk(KERN_ERR "Hm... too bad : no platform data for ts\n");
++		return -EINVAL;
++	}
++
++#ifdef CONFIG_TOUCHSCREEN_EmbedSky_DEBUG
++	printk(DEBUG_LVL "Entering EmbedSky_ts_init\n");
++#endif
++
++	adc_clock = clk_get(NULL, "adc");
++	if (!adc_clock) {
++		printk(KERN_ERR "failed to get adc clock source\n");
++		return -ENOENT;
++	}
++	clk_enable(adc_clock);
++
++#ifdef CONFIG_TOUCHSCREEN_EmbedSky_DEBUG
++	printk(DEBUG_LVL "got and enabled clock\n");
++#endif
++
++	base_addr=ioremap(S3C2410_PA_ADC,0x20);
++	if (base_addr == NULL) {
++		printk(KERN_ERR "Failed to remap register block\n");
++		return -ENOMEM;
++	}
++
++
++	/* Configure GPIOs */
++	EmbedSky_ts_connect();
++
++	if ((info->presc&0xff) > 0)
++		writel(S3C2410_ADCCON_PRSCEN | S3C2410_ADCCON_PRSCVL(info->presc&0xFF),\
++			     base_addr+S3C2410_ADCCON);
++	else
++		writel(0,base_addr+S3C2410_ADCCON);
++
++
++	/* Initialise registers */
++	if ((info->delay&0xffff) > 0)
++		writel(info->delay & 0xffff,  base_addr+S3C2410_ADCDLY);
++
++	writel(WAIT4INT(0), base_addr+S3C2410_ADCTSC);
++
++	/* Initialise input stuff */
++	memset(&ts, 0, sizeof(struct EmbedSky_ts));
++	//init_input_dev(&ts.dev);
++	ts.dev = input_allocate_device();
++	ts.dev->evbit[0] = BIT(EV_SYN) | BIT(EV_KEY) | BIT(EV_ABS);
++	ts.dev->keybit[BIT_WORD(BTN_TOUCH)] = BIT(BTN_TOUCH);
++	input_set_abs_params(ts.dev, ABS_X, 0, 0x3FF, 0, 0);
++	input_set_abs_params(ts.dev, ABS_Y, 0, 0x3FF, 0, 0);
++	input_set_abs_params(ts.dev, ABS_PRESSURE, 0, 1, 0, 0);
++
++	sprintf(ts.phys, "ts0");
++
++	ts.dev->private = &ts;
++	ts.dev->name = EmbedSky_ts_name;
++	ts.dev->phys = ts.phys;
++	ts.dev->id.bustype = BUS_RS232;
++	ts.dev->id.vendor = 0xDEAD;
++	ts.dev->id.product = 0xBEEF;
++	ts.dev->id.version = S3C2410TSVERSION;
++
++	ts.shift = info->oversampling_shift;
++
++	/* Get irqs */
++	if (request_irq(IRQ_ADC, stylus_action, SA_SAMPLE_RANDOM, "s3c2410_action", ts.dev))
++	{
++		printk(KERN_ERR "EmbedSky_ts.c: Could not allocate ts IRQ_ADC !\n");
++		iounmap(base_addr);
++		return -EIO;
++	}
++	if (request_irq(IRQ_TC, stylus_updown, SA_SAMPLE_RANDOM,
++			"s3c2410_action", ts.dev)) {
++		printk(KERN_ERR "EmbedSky_ts.c: Could not allocate ts IRQ_TC !\n");
++		iounmap(base_addr);
++		return -EIO;
++	}
++/*
++ *	for debug regs
++ */
++#ifdef CONFIG_TOUCHSCREEN_EmbedSky_DEBUG
++	unsigned long debug_regs;
++	debug_regs = 0;
++	debug_regs = readl(base_addr+S3C2410_ADCCON);
++	printk("S3C2410_ADCCON:0x%08lx\n",debug_regs);
++	debug_regs = readl(base_addr+S3C2410_ADCTSC);
++	printk("S3C2410_ADCTSC:0x%08lx\n",debug_regs);
++	debug_regs = readl(base_addr+S3C2410_ADCDLY);
++	printk("S3C2410_ADCDLY:0x%08lx\n",debug_regs);
++#endif
++
++	printk(KERN_INFO "%s successfully loaded\n", EmbedSky_ts_name);
++
++	/* All went ok, so register to the input system */
++	input_register_device(ts.dev);
++
++	return 0;
++}
++
++static int EmbedSky_ts_remove(struct device *dev)
++{
++	disable_irq(IRQ_ADC);
++	disable_irq(IRQ_TC);
++	free_irq(IRQ_TC,ts.dev);
++	free_irq(IRQ_ADC,ts.dev);
++
++	if (adc_clock) {
++		clk_disable(adc_clock);
++		//clk_unuse(adc_clock);
++		clk_put(adc_clock);
++		adc_clock = NULL;
++	}
++
++	input_unregister_device(ts.dev);
++	iounmap(base_addr);
++
++	return 0;
++}
++
++static struct device_driver EmbedSky_ts_driver = {
++       .name           = "EmbedSky-ts",
++       .bus            = &platform_bus_type,
++       .probe          = EmbedSky_ts_probe,
++       .remove         = EmbedSky_ts_remove,
++};
++
++
++int __init EmbedSky_ts_init(void)
++{
++	return driver_register(&EmbedSky_ts_driver);
++}
++
++void __exit EmbedSky_ts_exit(void)
++{
++	driver_unregister(&EmbedSky_ts_driver);
++}
++
++module_init(EmbedSky_ts_init);
++module_exit(EmbedSky_ts_exit);
++
++MODULE_AUTHOR("Arnaud Patard <arnaud.patard@rtp-net.org>");
++MODULE_DESCRIPTION("EmbedSky touchscreen driver");
++MODULE_LICENSE("GPL");
+diff -urNwB linux-2.6.25.8/drivers/input/touchscreen/Kconfig linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/Kconfig
+--- linux-2.6.25.8/drivers/input/touchscreen/Kconfig	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/Kconfig	2009-02-27 19:15:34.000000000 +0800
+@@ -263,4 +263,18 @@
+ 	bool "GoTop Super_Q2/GogoPen/PenPower tablet device support" if EMBEDDED
+ 	depends on TOUCHSCREEN_USB_COMPOSITE
+ 
++config EmbedSky_TOUCHSCREEN
++        tristate "EmbedSky touchscreen"
++        depends on ARCH_S3C2410 && INPUT && INPUT_TOUCHSCREEN
++	select SERIO
++        help
++          To compile this driver as a module, choose M here: the
++          module will be called EmbedSky_ts.ko.
++
++config TOUCHSCREEN_EmbedSky_DEBUG
++	boolean "EmbedSky touchscreen debug messages"
++	depends on EmbedSky_TOUCHSCREEN
++	help
++	  Select this if you want debug messages
++
+ endif
+diff -urNwB linux-2.6.25.8/drivers/input/touchscreen/Makefile linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/Makefile
+--- linux-2.6.25.8/drivers/input/touchscreen/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/touchscreen/Makefile	2009-02-13 16:48:35.000000000 +0800
+@@ -19,3 +19,4 @@
+ obj-$(CONFIG_TOUCHSCREEN_TOUCHRIGHT)	+= touchright.o
+ obj-$(CONFIG_TOUCHSCREEN_TOUCHWIN)	+= touchwin.o
+ obj-$(CONFIG_TOUCHSCREEN_UCB1400)	+= ucb1400_ts.o
++obj-$(CONFIG_EmbedSky_TOUCHSCREEN)	+= EmbedSky_ts.o
+diff -urNwB linux-2.6.25.8/drivers/input/tsdev.c linux-2.6.25.8_EmbedSky/drivers/input/tsdev.c
+--- linux-2.6.25.8/drivers/input/tsdev.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/input/tsdev.c	2008-07-13 23:15:11.000000000 +0800
+@@ -0,0 +1,697 @@
++/*
++ * $Id: tsdev.c,v 1.15 2002/04/10 16:50:19 jsimmons Exp $
++ *
++ *  Copyright (c) 2001 "Crazy" james Simmons
++ *
++ *  Compaq touchscreen protocol driver. The protocol emulated by this driver
++ *  is obsolete; for new programs use the tslib library which can read directly
++ *  from evdev and perform dejittering, variance filtering and calibration -
++ *  all in user space, not at kernel level. The meaning of this driver is
++ *  to allow usage of newer input drivers with old applications that use the
++ *  old /dev/h3600_ts and /dev/h3600_tsraw devices.
++ *
++ *  09-Apr-2004: Andrew Zabolotny <zap@homelink.ru>
++ *      Fixed to actually work, not just output random numbers.
++ *      Added support for both h3600_ts and h3600_tsraw protocol
++ *      emulation.
++ */
++
++/*
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License as published by
++ * the Free Software Foundation; either version 2 of the License, or
++ * (at your option) any later version.
++ *
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ *
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, write to the Free Software
++ * Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
++ *
++ * Should you need to contact me, the author, you can do so either by
++ * e-mail - mail your message to <jsimmons@infradead.org>.
++ */
++
++#define TSDEV_MINOR_BASE	128
++#define TSDEV_MINORS		32
++/* First 16 devices are h3600_ts compatible; second 16 are h3600_tsraw */
++#define TSDEV_MINOR_MASK	15
++#define TSDEV_BUFFER_SIZE	64
++
++#include <linux/slab.h>
++#include <linux/poll.h>
++#include <linux/module.h>
++#include <linux/moduleparam.h>
++#include <linux/init.h>
++#include <linux/input.h>
++#include <linux/major.h>
++#include <linux/random.h>
++#include <linux/time.h>
++#include <linux/device.h>
++
++#ifndef CONFIG_INPUT_TSDEV_SCREEN_X
++#define CONFIG_INPUT_TSDEV_SCREEN_X	240
++#endif
++#ifndef CONFIG_INPUT_TSDEV_SCREEN_Y
++#define CONFIG_INPUT_TSDEV_SCREEN_Y	320
++#endif
++
++/* This driver emulates both protocols of the old h3600_ts and h3600_tsraw
++ * devices. The first one must output X/Y data in 'cooked' format, e.g.
++ * filtered, dejittered and calibrated. Second device just outputs raw
++ * data received from the hardware.
++ *
++ * This driver doesn't support filtering and dejittering; it supports only
++ * calibration. Filtering and dejittering must be done in the low-level
++ * driver, if needed, because it may gain additional benefits from knowing
++ * the low-level details, the nature of noise and so on.
++ *
++ * The driver precomputes a calibration matrix given the initial xres and
++ * yres values (quite innacurate for most touchscreens) that will result
++ * in a more or less expected range of output values. The driver supports
++ * the TS_SET_CAL ioctl, which will replace the calibration matrix with a
++ * new one, supposedly generated from the values taken from the raw device.
++ */
++
++MODULE_AUTHOR("James Simmons <jsimmons@transvirtual.com>");
++MODULE_DESCRIPTION("Input driver to touchscreen converter");
++MODULE_LICENSE("GPL");
++
++static int xres = CONFIG_INPUT_TSDEV_SCREEN_X;
++module_param(xres, uint, 0);
++MODULE_PARM_DESC(xres, "Horizontal screen resolution (can be negative for X-mirror)");
++
++static int yres = CONFIG_INPUT_TSDEV_SCREEN_Y;
++module_param(yres, uint, 0);
++MODULE_PARM_DESC(yres, "Vertical screen resolution (can be negative for Y-mirror)");
++
++/* From Compaq's Touch Screen Specification version 0.2 (draft) */
++struct ts_event {
++	short pressure;
++	short x;
++	short y;
++	short millisecs;
++};
++
++struct ts_calibration {
++	int xscale;
++	int xtrans;
++	int yscale;
++	int ytrans;
++	int xyswap;
++};
++
++struct tsdev {
++	int exist;
++	int open;
++	int minor;
++	char name[8];
++	struct input_handle handle;
++	wait_queue_head_t wait;
++	struct list_head client_list;
++	spinlock_t client_lock; /* protects client_list */
++	struct mutex mutex;
++	struct device dev;
++
++	int x, y, pressure;
++	struct ts_calibration cal;
++};
++
++struct tsdev_client {
++	struct fasync_struct *fasync;
++	struct list_head node;
++	struct tsdev *tsdev;
++	struct ts_event buffer[TSDEV_BUFFER_SIZE];
++	int head, tail;
++	spinlock_t buffer_lock; /* protects access to buffer, head and tail */
++	int raw;
++};
++
++/* The following ioctl codes are defined ONLY for backward compatibility.
++ * Don't use tsdev for new developement; use the tslib library instead.
++ * Touchscreen calibration is a fully userspace task.
++ */
++/* Use 'f' as magic number */
++#define IOC_H3600_TS_MAGIC  'f'
++#define TS_GET_CAL	_IOR(IOC_H3600_TS_MAGIC, 10, struct ts_calibration)
++#define TS_SET_CAL	_IOW(IOC_H3600_TS_MAGIC, 11, struct ts_calibration)
++
++static struct tsdev *tsdev_table[TSDEV_MINORS/2];
++static DEFINE_MUTEX(tsdev_table_mutex);
++
++static int tsdev_fasync(int fd, struct file *file, int on)
++{
++	struct tsdev_client *client = file->private_data;
++	int retval;
++
++	retval = fasync_helper(fd, file, on, &client->fasync);
++
++	return retval < 0 ? retval : 0;
++}
++
++static void tsdev_free(struct device *dev)
++{
++	struct tsdev *tsdev = container_of(dev, struct tsdev, dev);
++
++	kfree(tsdev);
++}
++
++static void tsdev_attach_client(struct tsdev *tsdev, struct tsdev_client *client)
++{
++	spin_lock(&tsdev->client_lock);
++	list_add_tail_rcu(&client->node, &tsdev->client_list);
++	spin_unlock(&tsdev->client_lock);
++	synchronize_sched();
++}
++
++static void tsdev_detach_client(struct tsdev *tsdev, struct tsdev_client *client)
++{
++	spin_lock(&tsdev->client_lock);
++	list_del_rcu(&client->node);
++	spin_unlock(&tsdev->client_lock);
++	synchronize_sched();
++}
++
++static int tsdev_open_device(struct tsdev *tsdev)
++{
++	int retval;
++
++	retval = mutex_lock_interruptible(&tsdev->mutex);
++	if (retval)
++		return retval;
++
++	if (!tsdev->exist)
++		retval = -ENODEV;
++	else if (!tsdev->open++) {
++		retval = input_open_device(&tsdev->handle);
++		if (retval)
++			tsdev->open--;
++	}
++
++	mutex_unlock(&tsdev->mutex);
++	return retval;
++}
++
++static void tsdev_close_device(struct tsdev *tsdev)
++{
++	mutex_lock(&tsdev->mutex);
++
++	if (tsdev->exist && !--tsdev->open)
++		input_close_device(&tsdev->handle);
++
++	mutex_unlock(&tsdev->mutex);
++}
++
++/*
++ * Wake up users waiting for IO so they can disconnect from
++ * dead device.
++ */
++static void tsdev_hangup(struct tsdev *tsdev)
++{
++	struct tsdev_client *client;
++
++	spin_lock(&tsdev->client_lock);
++	list_for_each_entry(client, &tsdev->client_list, node)
++		kill_fasync(&client->fasync, SIGIO, POLL_HUP);
++	spin_unlock(&tsdev->client_lock);
++
++	wake_up_interruptible(&tsdev->wait);
++}
++
++static int tsdev_release(struct inode *inode, struct file *file)
++{
++	struct tsdev_client *client = file->private_data;
++	struct tsdev *tsdev = client->tsdev;
++
++	tsdev_fasync(-1, file, 0);
++	tsdev_detach_client(tsdev, client);
++	kfree(client);
++
++	tsdev_close_device(tsdev);
++	put_device(&tsdev->dev);
++
++	return 0;
++}
++
++static int tsdev_open(struct inode *inode, struct file *file)
++{
++	int i = iminor(inode) - TSDEV_MINOR_BASE;
++	struct tsdev_client *client;
++	struct tsdev *tsdev;
++	int error;
++
++
++	if (i >= TSDEV_MINORS)
++		return -ENODEV;
++
++	error = mutex_lock_interruptible(&tsdev_table_mutex);
++	if (error)
++		return error;
++	tsdev = tsdev_table[i & TSDEV_MINOR_MASK];
++	if (tsdev)
++		get_device(&tsdev->dev);
++	mutex_unlock(&tsdev_table_mutex);
++
++	if (!tsdev)
++		return -ENODEV;
++
++	client = kzalloc(sizeof(struct tsdev_client), GFP_KERNEL);
++	if (!client) {
++		error = -ENOMEM;
++		goto err_put_tsdev;
++	}
++
++	spin_lock_init(&client->buffer_lock);
++	client->tsdev = tsdev;
++	client->raw = i >= TSDEV_MINORS / 2;
++	tsdev_attach_client(tsdev, client);
++
++	error = tsdev_open_device(tsdev);
++	if (error)
++		goto err_free_client;
++
++	file->private_data = client;
++	return 0;
++
++ err_free_client:
++	tsdev_detach_client(tsdev, client);
++	kfree(client);
++ err_put_tsdev:
++	put_device(&tsdev->dev);
++	return error;
++}
++
++static int tsdev_fetch_next_event(struct tsdev_client *client,
++				  struct ts_event *event)
++{
++	int have_event;
++
++	spin_lock_irq(&client->buffer_lock);
++
++	have_event = client->head != client->tail;
++	if (have_event) {
++		*event = client->buffer[client->tail++];
++		client->tail &= TSDEV_BUFFER_SIZE - 1;
++	}
++
++	spin_unlock_irq(&client->buffer_lock);
++
++	return have_event;
++}
++
++static ssize_t tsdev_read(struct file *file, char __user *buffer, size_t count,
++			  loff_t *ppos)
++{
++	struct tsdev_client *client = file->private_data;
++	struct tsdev *tsdev = client->tsdev;
++	struct ts_event event;
++	int retval;
++
++	if (client->head == client->tail && tsdev->exist &&
++	    (file->f_flags & O_NONBLOCK))
++		return -EAGAIN;
++
++	retval = wait_event_interruptible(tsdev->wait,
++			client->head != client->tail || !tsdev->exist);
++	if (retval)
++		return retval;
++
++	if (!tsdev->exist)
++		return -ENODEV;
++
++	while (retval + sizeof(struct ts_event) <= count &&
++	       tsdev_fetch_next_event(client, &event)) {
++
++		if (copy_to_user(buffer + retval, &event,
++				 sizeof(struct ts_event)))
++			return -EFAULT;
++
++		retval += sizeof(struct ts_event);
++	}
++
++	return retval;
++}
++
++/* No kernel lock - fine */
++static unsigned int tsdev_poll(struct file *file, poll_table *wait)
++{
++	struct tsdev_client *client = file->private_data;
++	struct tsdev *tsdev = client->tsdev;
++
++	poll_wait(file, &tsdev->wait, wait);
++	return ((client->head == client->tail) ? 0 : (POLLIN | POLLRDNORM)) |
++		(tsdev->exist ? 0 : (POLLHUP | POLLERR));
++}
++
++static long tsdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
++{
++	struct tsdev_client *client = file->private_data;
++	struct tsdev *tsdev = client->tsdev;
++	int retval = 0;
++
++	retval = mutex_lock_interruptible(&tsdev->mutex);
++	if (retval)
++		return retval;
++
++	if (!tsdev->exist) {
++		retval = -ENODEV;
++		goto out;
++	}
++
++	switch (cmd) {
++
++	case TS_GET_CAL:
++		if (copy_to_user((void __user *)arg, &tsdev->cal,
++				 sizeof (struct ts_calibration)))
++			retval = -EFAULT;
++		break;
++
++	case TS_SET_CAL:
++		if (copy_from_user(&tsdev->cal, (void __user *)arg,
++				   sizeof(struct ts_calibration)))
++			retval = -EFAULT;
++		break;
++
++	default:
++		retval = -EINVAL;
++		break;
++	}
++
++ out:
++	mutex_unlock(&tsdev->mutex);
++	return retval;
++}
++
++static const struct file_operations tsdev_fops = {
++	.owner		= THIS_MODULE,
++	.open		= tsdev_open,
++	.release	= tsdev_release,
++	.read		= tsdev_read,
++	.poll		= tsdev_poll,
++	.fasync		= tsdev_fasync,
++	.unlocked_ioctl	= tsdev_ioctl,
++};
++
++static void tsdev_pass_event(struct tsdev *tsdev, struct tsdev_client *client,
++			     int x, int y, int pressure, int millisecs)
++{
++	struct ts_event *event;
++	int tmp;
++
++	/* Interrupts are already disabled, just acquire the lock */
++	spin_lock(&client->buffer_lock);
++
++	event = &client->buffer[client->head++];
++	client->head &= TSDEV_BUFFER_SIZE - 1;
++
++	/* Calibration */
++	if (!client->raw) {
++		x = ((x * tsdev->cal.xscale) >> 8) + tsdev->cal.xtrans;
++		y = ((y * tsdev->cal.yscale) >> 8) + tsdev->cal.ytrans;
++		if (tsdev->cal.xyswap) {
++			tmp = x; x = y; y = tmp;
++		}
++	}
++
++	event->millisecs = millisecs;
++	event->x = x;
++	event->y = y;
++	event->pressure = pressure;
++
++	spin_unlock(&client->buffer_lock);
++
++	kill_fasync(&client->fasync, SIGIO, POLL_IN);
++}
++
++static void tsdev_distribute_event(struct tsdev *tsdev)
++{
++	struct tsdev_client *client;
++	struct timeval time;
++	int millisecs;
++
++	do_gettimeofday(&time);
++	millisecs = time.tv_usec / 1000;
++
++	list_for_each_entry_rcu(client, &tsdev->client_list, node)
++		tsdev_pass_event(tsdev, client,
++				 tsdev->x, tsdev->y,
++				 tsdev->pressure, millisecs);
++}
++
++static void tsdev_event(struct input_handle *handle, unsigned int type,
++			unsigned int code, int value)
++{
++	struct tsdev *tsdev = handle->private;
++	struct input_dev *dev = handle->dev;
++	int wake_up_readers = 0;
++
++	switch (type) {
++
++	case EV_ABS:
++		switch (code) {
++
++		case ABS_X:
++			tsdev->x = value;
++			break;
++
++		case ABS_Y:
++			tsdev->y = value;
++			break;
++
++		case ABS_PRESSURE:
++			if (value > dev->absmax[ABS_PRESSURE])
++				value = dev->absmax[ABS_PRESSURE];
++			value -= dev->absmin[ABS_PRESSURE];
++			if (value < 0)
++				value = 0;
++			tsdev->pressure = value;
++			break;
++		}
++		break;
++
++	case EV_REL:
++		switch (code) {
++
++		case REL_X:
++			tsdev->x += value;
++			if (tsdev->x < 0)
++				tsdev->x = 0;
++			else if (tsdev->x > xres)
++				tsdev->x = xres;
++			break;
++
++		case REL_Y:
++			tsdev->y += value;
++			if (tsdev->y < 0)
++				tsdev->y = 0;
++			else if (tsdev->y > yres)
++				tsdev->y = yres;
++			break;
++		}
++		break;
++
++	case EV_KEY:
++		if (code == BTN_TOUCH || code == BTN_MOUSE) {
++			switch (value) {
++
++			case 0:
++				tsdev->pressure = 0;
++				break;
++
++			case 1:
++				if (!tsdev->pressure)
++					tsdev->pressure = 1;
++				break;
++			}
++		}
++		break;
++
++	case EV_SYN:
++		if (code == SYN_REPORT) {
++			tsdev_distribute_event(tsdev);
++			wake_up_readers = 1;
++		}
++		break;
++	}
++
++	if (wake_up_readers)
++		wake_up_interruptible(&tsdev->wait);
++}
++
++static int tsdev_install_chrdev(struct tsdev *tsdev)
++{
++	tsdev_table[tsdev->minor] = tsdev;
++	return 0;
++}
++
++static void tsdev_remove_chrdev(struct tsdev *tsdev)
++{
++	mutex_lock(&tsdev_table_mutex);
++	tsdev_table[tsdev->minor] = NULL;
++	mutex_unlock(&tsdev_table_mutex);
++}
++
++/*
++ * Mark device non-existant. This disables writes, ioctls and
++ * prevents new users from opening the device. Already posted
++ * blocking reads will stay, however new ones will fail.
++ */
++static void tsdev_mark_dead(struct tsdev *tsdev)
++{
++	mutex_lock(&tsdev->mutex);
++	tsdev->exist = 0;
++	mutex_unlock(&tsdev->mutex);
++}
++
++static void tsdev_cleanup(struct tsdev *tsdev)
++{
++	struct input_handle *handle = &tsdev->handle;
++
++	tsdev_mark_dead(tsdev);
++	tsdev_hangup(tsdev);
++	tsdev_remove_chrdev(tsdev);
++
++	/* tsdev is marked dead so noone else accesses tsdev->open */
++	if (tsdev->open)
++		input_close_device(handle);
++}
++
++static int tsdev_connect(struct input_handler *handler, struct input_dev *dev,
++			 const struct input_device_id *id)
++{
++	struct tsdev *tsdev;
++	int delta;
++	int minor;
++	int error;
++
++	for (minor = 0; minor < TSDEV_MINORS / 2; minor++)
++		if (!tsdev_table[minor])
++			break;
++
++	if (minor == TSDEV_MINORS) {
++		printk(KERN_ERR "tsdev: no more free tsdev devices\n");
++		return -ENFILE;
++	}
++
++	tsdev = kzalloc(sizeof(struct tsdev), GFP_KERNEL);
++	if (!tsdev)
++		return -ENOMEM;
++
++	INIT_LIST_HEAD(&tsdev->client_list);
++	spin_lock_init(&tsdev->client_lock);
++	mutex_init(&tsdev->mutex);
++	init_waitqueue_head(&tsdev->wait);
++
++	snprintf(tsdev->name, sizeof(tsdev->name), "ts%d", minor);
++	tsdev->exist = 1;
++	tsdev->minor = minor;
++
++	tsdev->handle.dev = dev;
++	tsdev->handle.name = tsdev->name;
++	tsdev->handle.handler = handler;
++	tsdev->handle.private = tsdev;
++
++	/* Precompute the rough calibration matrix */
++	delta = dev->absmax [ABS_X] - dev->absmin [ABS_X] + 1;
++	if (delta == 0)
++		delta = 1;
++	tsdev->cal.xscale = (xres << 8) / delta;
++	tsdev->cal.xtrans = - ((dev->absmin [ABS_X] * tsdev->cal.xscale) >> 8);
++
++	delta = dev->absmax [ABS_Y] - dev->absmin [ABS_Y] + 1;
++	if (delta == 0)
++		delta = 1;
++	tsdev->cal.yscale = (yres << 8) / delta;
++	tsdev->cal.ytrans = - ((dev->absmin [ABS_Y] * tsdev->cal.yscale) >> 8);
++
++	strlcpy(tsdev->dev.bus_id, tsdev->name, sizeof(tsdev->dev.bus_id));
++	tsdev->dev.devt = MKDEV(INPUT_MAJOR, TSDEV_MINOR_BASE + minor);
++	tsdev->dev.class = &input_class;
++	tsdev->dev.parent = &dev->dev;
++	tsdev->dev.release = tsdev_free;
++	device_initialize(&tsdev->dev);
++
++	error = input_register_handle(&tsdev->handle);
++	if (error)
++		goto err_free_tsdev;
++
++	error = tsdev_install_chrdev(tsdev);
++	if (error)
++		goto err_unregister_handle;
++
++	error = device_add(&tsdev->dev);
++	if (error)
++		goto err_cleanup_tsdev;
++
++	return 0;
++
++ err_cleanup_tsdev:
++	tsdev_cleanup(tsdev);
++ err_unregister_handle:
++	input_unregister_handle(&tsdev->handle);
++ err_free_tsdev:
++	put_device(&tsdev->dev);
++	return error;
++}
++
++static void tsdev_disconnect(struct input_handle *handle)
++{
++	struct tsdev *tsdev = handle->private;
++
++	device_del(&tsdev->dev);
++	tsdev_cleanup(tsdev);
++	input_unregister_handle(handle);
++	put_device(&tsdev->dev);
++}
++
++static const struct input_device_id tsdev_ids[] = {
++	{
++	      .flags	= INPUT_DEVICE_ID_MATCH_EVBIT | INPUT_DEVICE_ID_MATCH_KEYBIT | INPUT_DEVICE_ID_MATCH_RELBIT,
++	      .evbit	= { BIT(EV_KEY) | BIT(EV_REL) },
++	      .keybit	= { [BTN_LEFT/32] = BIT(BTN_LEFT) },
++	      .relbit	= { BIT(REL_X) | BIT(REL_Y) },
++	}, /* A mouse like device, at least one button, two relative axes */
++
++	{
++	      .flags	= INPUT_DEVICE_ID_MATCH_EVBIT | INPUT_DEVICE_ID_MATCH_KEYBIT | INPUT_DEVICE_ID_MATCH_ABSBIT,
++	      .evbit	= { BIT(EV_KEY) | BIT(EV_ABS) },
++	      .keybit	= { [BTN_TOUCH/32] = BIT(BTN_TOUCH) },
++	      .absbit	= { BIT(ABS_X) | BIT(ABS_Y) },
++	}, /* A tablet like device, at least touch detection, two absolute axes */
++
++	{
++	      .flags	= INPUT_DEVICE_ID_MATCH_EVBIT | INPUT_DEVICE_ID_MATCH_ABSBIT,
++	      .evbit	= { BIT(EV_ABS) },
++	      .absbit	= { BIT(ABS_X) | BIT(ABS_Y) | BIT(ABS_PRESSURE) },
++	}, /* A tablet like device with several gradations of pressure */
++
++	{} /* Terminating entry */
++};
++
++MODULE_DEVICE_TABLE(input, tsdev_ids);
++
++static struct input_handler tsdev_handler = {
++	.event		= tsdev_event,
++	.connect	= tsdev_connect,
++	.disconnect	= tsdev_disconnect,
++	.fops		= &tsdev_fops,
++	.minor		= TSDEV_MINOR_BASE,
++	.name		= "tsdev",
++	.id_table	= tsdev_ids,
++};
++
++static int __init tsdev_init(void)
++{
++	return input_register_handler(&tsdev_handler);
++}
++
++static void __exit tsdev_exit(void)
++{
++	input_unregister_handler(&tsdev_handler);
++}
++
++module_init(tsdev_init);
++module_exit(tsdev_exit);
+diff -urNwB linux-2.6.25.8/include/asm-arm/arch-s3c2410/ts.h linux-2.6.25.8_EmbedSky/include/asm-arm/arch-s3c2410/ts.h
+--- linux-2.6.25.8/include/asm-arm/arch-s3c2410/ts.h	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/include/asm-arm/arch-s3c2410/ts.h	2009-02-17 18:01:09.000000000 +0800
+@@ -0,0 +1,28 @@
++/* linux/include/asm/arch-s3c2410/ts.h
++ *
++ * Copyright (c) 2005 Arnaud Patard <arnaud.patard@rtp-net.org>
++ *
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ *
++ *
++ *  Changelog:
++ *     24-Mar-2005     RTP     Created file
++ *     03-Aug-2005     RTP     Renamed to ts.h
++ */
++
++#ifndef __ASM_ARM_TS_H
++#define __ASM_ARM_TS_H
++
++struct EmbedSky_ts_mach_info {
++       int             delay;
++       int             presc;
++       int             oversampling_shift;
++};
++
++void __init set_EmbedSky_ts_info(struct EmbedSky_ts_mach_info *hard_EmbedSky_ts_info);
++
++#endif /* __ASM_ARM_TS_H */
++
+diff -urNwB linux-2.6.25.8/include/asm-arm/hardware/clock.h linux-2.6.25.8_EmbedSky/include/asm-arm/hardware/clock.h
+--- linux-2.6.25.8/include/asm-arm/hardware/clock.h	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/include/asm-arm/hardware/clock.h	2009-02-13 15:29:53.000000000 +0800
+@@ -0,0 +1,124 @@
++/*
++ *  linux/include/asm-arm/hardware/clock.h
++ *
++ *  Copyright (C) 2004 ARM Limited.
++ *  Written by Deep Blue Solutions Limited.
++ *
++ * This program is free software; you can redistribute it and/or modify
++ * it under the terms of the GNU General Public License version 2 as
++ * published by the Free Software Foundation.
++ */
++#ifndef ASMARM_CLOCK_H
++#define ASMARM_CLOCK_H
++
++struct device;
++
++/*
++ * The base API.
++ */
++
++
++/*
++ * struct clk - an machine class defined object / cookie.
++ */
++struct clk;
++
++/**
++ * clk_get - lookup and obtain a reference to a clock producer.
++ * @dev: device for clock "consumer"
++ * @id: clock comsumer ID
++ *
++ * Returns a struct clk corresponding to the clock producer, or
++ * valid IS_ERR() condition containing errno.  The implementation
++ * uses @dev and @id to determine the clock consumer, and thereby
++ * the clock producer.  (IOW, @id may be identical strings, but
++ * clk_get may return different clock producers depending on @dev.)
++ */
++struct clk *clk_get(struct device *dev, const char *id);
++
++/**
++ * clk_enable - inform the system when the clock source should be running.
++ * @clk: clock source
++ *
++ * If the clock can not be enabled/disabled, this should return success.
++ *
++ * Returns success (0) or negative errno.
++ */
++int clk_enable(struct clk *clk);
++
++/**
++ * clk_disable - inform the system when the clock source is no longer required.
++ * @clk: clock source
++ */
++void clk_disable(struct clk *clk);
++
++/**
++ * clk_use - increment the use count
++ * @clk: clock source
++ *
++ * Returns success (0) or negative errno.
++ */
++int clk_use(struct clk *clk);
++
++/**
++ * clk_unuse - decrement the use count
++ * @clk: clock source
++ */
++void clk_unuse(struct clk *clk);
++
++/**
++ * clk_get_rate - obtain the current clock rate (in Hz) for a clock source.
++ *		  This is only valid once the clock source has been enabled.
++ * @clk: clock source
++ */
++unsigned long clk_get_rate(struct clk *clk);
++
++/**
++ * clk_put	- "free" the clock source
++ * @clk: clock source
++ */
++void clk_put(struct clk *clk);
++
++
++/*
++ * The remaining APIs are optional for machine class support.
++ */
++
++
++/**
++ * clk_round_rate - adjust a rate to the exact rate a clock can provide
++ * @clk: clock source
++ * @rate: desired clock rate in Hz
++ *
++ * Returns rounded clock rate in Hz, or negative errno.
++ */
++long clk_round_rate(struct clk *clk, unsigned long rate);
++ 
++/**
++ * clk_set_rate - set the clock rate for a clock source
++ * @clk: clock source
++ * @rate: desired clock rate in Hz
++ *
++ * Returns success (0) or negative errno.
++ */
++int clk_set_rate(struct clk *clk, unsigned long rate);
++ 
++/**
++ * clk_set_parent - set the parent clock source for this clock
++ * @clk: clock source
++ * @parent: parent clock source
++ *
++ * Returns success (0) or negative errno.
++ */
++int clk_set_parent(struct clk *clk, struct clk *parent);
++
++/**
++ * clk_get_parent - get the parent clock source for this clock
++ * @clk: clock source
++ *
++ * Returns struct clk corresponding to parent clock source, or
++ * valid IS_ERR() condition containing errno.
++ */
++struct clk *clk_get_parent(struct clk *clk);
++
++#endif
+diff -urNwB linux-2.6.25.8/include/linux/interrupt.h linux-2.6.25.8_EmbedSky/include/linux/interrupt.h
+--- linux-2.6.25.8/include/linux/interrupt.h	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/include/linux/interrupt.h	2009-02-13 15:50:09.000000000 +0800
+@@ -55,6 +55,24 @@
+ #define IRQF_NOBALANCING	0x00000800
+ #define IRQF_IRQPOLL		0x00001000
+ 
++static inline
++unsigned long __deprecated deprecated_irq_flag(unsigned long flag)
++{
++	return flag;
++}
++
++#define SA_INTERRUPT		deprecated_irq_flag(IRQF_DISABLED)
++#define SA_SAMPLE_RANDOM	deprecated_irq_flag(IRQF_SAMPLE_RANDOM)
++#define SA_SHIRQ		deprecated_irq_flag(IRQF_SHARED)
++#define SA_PROBEIRQ		deprecated_irq_flag(IRQF_PROBE_SHARED)
++#define SA_PERCPU		deprecated_irq_flag(IRQF_PERCPU)
++
++#define SA_TRIGGER_LOW		deprecated_irq_flag(IRQF_TRIGGER_LOW)
++#define SA_TRIGGER_HIGH		deprecated_irq_flag(IRQF_TRIGGER_HIGH)
++#define SA_TRIGGER_FALLING	deprecated_irq_flag(IRQF_TRIGGER_FALLING)
++#define SA_TRIGGER_RISING	deprecated_irq_flag(IRQF_TRIGGER_RISING)
++#define SA_TRIGGER_MASK		deprecated_irq_flag(IRQF_TRIGGER_MASK)
++
+ typedef irqreturn_t (*irq_handler_t)(int, void *);
+ 
+ struct irqaction {

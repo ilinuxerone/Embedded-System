@@ -1,0 +1,11 @@
+audio_null.o: audio_null.c config.h global.h \
+  /opt/EmbedSky/apps/madplay/madplay-0.15.2b/../__install/include/mad.h \
+  audio.h
+
+config.h:
+
+global.h:
+
+/opt/EmbedSky/apps/madplay/madplay-0.15.2b/../__install/include/mad.h:
+
+audio.h:

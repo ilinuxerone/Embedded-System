@@ -1,0 +1,41 @@
+diff -urNwB linux-2.6.25.8/drivers/video/s3c2410fb.c linux-2.6.25.8_EmbedSky/drivers/video/s3c2410fb.c
+--- linux-2.6.25.8/drivers/video/s3c2410fb.c	2009-02-28 14:29:57.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/video/s3c2410fb.c	2009-02-28 14:41:50.000000000 +0800
+@@ -603,7 +603,7 @@
+ static int s3c2410fb_blank(int blank_mode, struct fb_info *info)
+ {
+ 	struct s3c2410fb_info *fbi = info->par;
+-	void __iomem *tpal_reg = fbi->io;
++/*	void __iomem *tpal_reg = fbi->io;
+ 
+ 	dprintk("blank(mode=%d, info=%p)\n", blank_mode, info);
+ 
+@@ -615,6 +615,28 @@
+ 		dprintk("setting TPAL to output 0x000000\n");
+ 		writel(S3C2410_TPAL_EN, tpal_reg);
+ 	}
++*/
++	void __iomem *regs = fbi->io;
++	u_long flags;
++	local_irq_save(flags);
++
++	fbi->regs.lcdcon5  = __raw_readl(regs + S3C2410_LCDCON5);
++	switch( blank_mode )
++	{
++		case 0:
++			fbi->regs.lcdcon5 &= ~S3C2410_LCDCON5_PWREN;
++			printk(KERN_INFO "Turn off The LCD Backlight\n");
++			break;
++		case 1:
++			fbi->regs.lcdcon5 |= S3C2410_LCDCON5_PWREN;
++			printk(KERN_INFO "Turn on The LCD Backlight\n");
++			break;
++		default:
++			break;
++	}   
++	__raw_writel(fbi->regs.lcdcon5, regs + S3C2410_LCDCON5);    
++
++	local_irq_restore(flags);
+ 
+ 	return 0;
+ }

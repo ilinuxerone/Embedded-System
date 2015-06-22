@@ -1,0 +1,180 @@
+diff -urNwB linux-2.6.25.8/drivers/char/EmbedSky_beep.c linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_beep.c
+--- linux-2.6.25.8/drivers/char/EmbedSky_beep.c	1970-01-01 08:00:00.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/EmbedSky_beep.c	2009-02-23 20:30:05.000000000 +0800
+@@ -0,0 +1,149 @@
++/*************************************
++
++NAME:EmbedSky_beep.c
++COPYRIGHT:www.embedsky.net
++
++*************************************/
++
++#include <linux/module.h>
++#include <linux/kernel.h>
++#include <linux/fs.h>
++#include <linux/init.h>
++#include <linux/device.h>
++#include <linux/miscdevice.h>
++#include <linux/delay.h>
++#include <linux/mm.h>
++#include <asm/irq.h>
++#include <asm/plat-s3c/regs-timer.h>
++#include <asm/arch/regs-gpio.h>
++#include <asm/arch/map.h>
++#include <asm/arch/regs-irq.h>
++#include <asm/io.h>
++#include <asm/hardware.h>
++#include <asm/uaccess.h>
++#include <asm/system.h>
++
++#define DEVICE_NAME	"EmbedSky-Beep"		/* 加载模式后，执行”cat /proc/devices”命令看到的设备名称 */
++#define BEEP_MAJOR	233			/* 主设备号 */
++
++/* 应用程序对设备文件/dev/EmbedSky-Beep执行ioclt(...)时，
++ * 就会调用EmbedSky_beep_ioctl函数
++ */
++static int EmbedSky_beep_ioctl(
++	struct inode *inode, 
++	struct file *file, 
++	unsigned int cmd, 
++	unsigned long arg)
++{
++	unsigned long temp;
++	if(cmd <= 0)
++	{
++		temp = __raw_readl(S3C2410_GPBCON);	//GPBCON
++		temp &= ~3;
++		temp |= 1;
++		__raw_writel(temp, S3C2410_GPBCON);
++
++		temp = __raw_readl(S3C2410_GPBDAT);	//GPBDAT
++		temp &= ~1;
++		__raw_writel(temp, S3C2410_GPBDAT);
++	}
++	else
++	{
++		temp = __raw_readl(S3C2410_GPBCON);	//GPBCON
++		temp &= ~3;
++		temp |= 2;
++		__raw_writel(temp, S3C2410_GPBCON);
++
++		temp = __raw_readl(S3C2410_TCFG0);	//TCFG0
++		temp &= ~0xff;
++		temp |= 15;
++		__raw_writel(temp, S3C2410_TCFG0);
++
++		temp = __raw_readl(S3C2410_TCFG1);	//TCFG1
++		temp &= ~0xf;
++		temp |= 2;
++		__raw_writel(temp, S3C2410_TCFG1);
++
++		temp = (50000000/128)/cmd;
++		__raw_writel(temp, S3C2410_TCNTB(0));
++
++		temp >>= 1;
++		__raw_writel(temp, S3C2410_TCMPB(0));
++
++		temp = __raw_readl(S3C2410_TCON);	//TCON
++		temp &= ~0x1f;
++		temp |= 0xb;
++		__raw_writel(temp, S3C2410_TCON);
++
++		temp &= ~2;
++		__raw_writel(temp, S3C2410_TCON);	
++	}
++	return 0;
++}
++
++/* 这个结构是字符设备驱动程序的核心
++ * 当应用程序操作设备文件时所调用的open、read、write、ioctl等函数，
++ * 最终会调用这个结构中指定的对应函数
++ */
++static struct file_operations EmbedSky_beep_fops = {
++	.owner	=	THIS_MODULE,
++	.ioctl	=	EmbedSky_beep_ioctl,
++};
++
++static char __initdata banner[] = "TQ2440/SKY2440 Beep, (c) 2008,2009 www.embedsky.net\n";
++static struct class *beep_class;
++
++/*
++ * 执行“insmod EmbedSky_beep.ko”命令时就会调用这个函数
++ */
++static int __init EmbedSky_beep_init(void)
++{
++	int ret;
++	printk(banner);
++
++	/* 注册字符设备驱动程序
++	 * 参数为主设备号、设备名字、file_operations结构；
++	 * 这样，主设备号就和具体的file_operations结构联系起来了，
++	 * 操作主设备为BEEP_MAJOR的设备文件时，就会调用EmbedSky_beep_fops中的相关成员函数
++	 * BEEP_MAJOR可以设为0，表示由内核自动分配主设备号
++	 */
++	ret = register_chrdev(BEEP_MAJOR, DEVICE_NAME, &EmbedSky_beep_fops);
++	if (ret < 0) {
++	  printk(DEVICE_NAME " can't register major number\n");
++	  return ret;
++	}
++
++	//注册一个类，使mdev可以在"/dev/"目录下面建立设备节点
++	beep_class = class_create(THIS_MODULE, DEVICE_NAME);
++	if(IS_ERR(beep_class))
++	{
++		printk("Err: failed in EmbedSky-Beep class. \n");
++		return -1;
++	}
++	//创建一个设备节点，节点名为DEVICE_NAME
++	class_device_create(beep_class, NULL, MKDEV(BEEP_MAJOR, 0), NULL, DEVICE_NAME);
++
++	printk(DEVICE_NAME " initialized\n");
++	return 0;
++
++}
++
++/*
++ * 执行”rmmod EmbedSky_beep.ko”命令时就会调用这个函数 
++ */
++static void __exit EmbedSky_beep_exit(void)
++{
++	/* 卸载驱动程序 */
++	unregister_chrdev(BEEP_MAJOR, DEVICE_NAME);
++	class_device_destroy(beep_class, MKDEV(BEEP_MAJOR, 0));		//删掉设备节点
++	class_destroy(beep_class);						//注销类
++}
++
++/* 这两行指定驱动程序的初始化函数和卸载函数 */
++module_init(EmbedSky_beep_init);
++module_exit(EmbedSky_beep_exit);
++
++/* 描述驱动程序的一些信息，不是必须的 */
++MODULE_AUTHOR("http://www.embedsky.net");		// 驱动程序的作者
++MODULE_DESCRIPTION("TQ2440/SKY2440 Beep Driver");	// 一些描述信息
++MODULE_LICENSE("GPL");					// 遵循的协议
+diff -urNwB linux-2.6.25.8/drivers/char/Kconfig linux-2.6.25.8_EmbedSky/drivers/char/Kconfig
+--- linux-2.6.25.8/drivers/char/Kconfig	2009-02-28 15:37:57.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Kconfig	2009-02-28 15:45:11.000000000 +0800
+@@ -16,6 +16,12 @@
+ 	help
+ 	  EmbedSky TQ2440/SKY2440 User leds.
+ 
++config EmbedSky_Beep
++	tristate "TQ2440/SKY2440 Beep Driver"
++	depends on ARCH_S3C2440
++	help
++	  EmbedSky TQ2440/SKY2440 Beep control.
++
+ config VT
+ 	bool "Virtual terminal" if EMBEDDED
+ 	depends on !S390
+diff -urNwB linux-2.6.25.8/drivers/char/Makefile linux-2.6.25.8_EmbedSky/drivers/char/Makefile
+--- linux-2.6.25.8/drivers/char/Makefile	2009-02-28 15:37:57.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/char/Makefile	2009-02-28 15:45:14.000000000 +0800
+@@ -11,6 +11,7 @@
+ 
+ obj-$(CONFIG_EmbedSky_HELLO)	+= EmbedSky_hello.o
+ obj-$(CONFIG_EmbedSky_LEDS)	+= EmbedSky_leds.o
++obj-$(CONFIG_EmbedSky_Beep)	+= EmbedSky_beep.o
+ obj-$(CONFIG_LEGACY_PTYS)	+= pty.o
+ obj-$(CONFIG_UNIX98_PTYS)	+= pty.o
+ obj-y				+= misc.o

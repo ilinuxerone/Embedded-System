@@ -1,0 +1,57 @@
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:43:50.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:54:38.000000000 +0800
+@@ -45,6 +45,7 @@
+ #include <asm/plat-s3c24xx/cpu.h>
+ 
+ #include <asm/plat-s3c24xx/common-smdk.h>
++#include <asm/plat-s3c24xx/udc.h>
+ 
+ static struct map_desc smdk2440_iodesc[] __initdata = {
+ 	/* ISA IO Space map (memory space selected by A24) */
+@@ -148,12 +149,35 @@
+ 	.lpcsel		= ((0xCE6) & ~7) | 1<<4,
+ };
+ 
++static void EmbedSky_udc_pullup(enum s3c2410_udc_cmd_e cmd)
++{
++        printk(KERN_DEBUG "EmbedSky udc: pullup(%d)\n",cmd);
++	        switch (cmd)
++	        {
++	                case S3C2410_UDC_P_ENABLE :
++	                        s3c2410_gpio_setpin(S3C2410_GPG12, 1);
++	                        break;
++	                case S3C2410_UDC_P_DISABLE :
++	                        s3c2410_gpio_setpin(S3C2410_GPG12, 0);
++	                        break;
++	                case S3C2410_UDC_P_RESET :
++	                        break;
++		        default:
++	                        break;
++	        }
++}
++
++static struct s3c2410_udc_mach_info EmbedSky_udc_cfg = {
++	.udc_command		= EmbedSky_udc_pullup,
++};
++
+ static struct platform_device *smdk2440_devices[] __initdata = {
+ 	&s3c_device_usb,
+ 	&s3c_device_lcd,
+ 	&s3c_device_wdt,
+ 	&s3c_device_i2c,
+ 	&s3c_device_iis,
++	&s3c_device_usbgadget,
+ };
+ 
+ static void __init smdk2440_map_io(void)
+@@ -169,6 +193,9 @@
+ 
+ 	platform_add_devices(smdk2440_devices, ARRAY_SIZE(smdk2440_devices));
+ 	smdk_machine_init();
++	s3c2410_gpio_setpin(S3C2410_GPG12, 0);
++        s3c2410_gpio_cfgpin(S3C2410_GPG12, S3C2410_GPIO_OUTPUT);
++	s3c24xx_udc_set_platdata(&EmbedSky_udc_cfg);
+ }
+ 
+ MACHINE_START(S3C2440, "SMDK2440")

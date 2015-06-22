@@ -1,0 +1,44 @@
+diff -urNwB linux-2.6.25.8/drivers/usb/host/Kconfig linux-2.6.25.8_EmbedSky/drivers/usb/host/Kconfig
+--- linux-2.6.25.8/drivers/usb/host/Kconfig	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/usb/host/Kconfig	2009-01-11 00:17:06.000000000 +0800
+@@ -4,6 +4,11 @@
+ comment "USB Host Controller Drivers"
+ 	depends on USB
+ 
++config EmbedSky_TWO_USB_HOST
++	bool "EmbedSky TWO USB HOST"
++	---help---
++		S3C2440 can use two usb Host or one usb host and one usb device.
++
+ config USB_EHCI_HCD
+ 	tristate "EHCI HCD (USB 2.0) support"
+ 	depends on USB && USB_ARCH_HAS_EHCI
+diff -urNwB linux-2.6.25.8/drivers/usb/host/ohci-s3c2410.c linux-2.6.25.8_EmbedSky/drivers/usb/host/ohci-s3c2410.c
+--- linux-2.6.25.8/drivers/usb/host/ohci-s3c2410.c	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/usb/host/ohci-s3c2410.c	2009-01-11 00:43:33.000000000 +0800
+@@ -24,6 +24,9 @@
+ 
+ #include <asm/hardware.h>
+ #include <asm/arch/usb-control.h>
++#ifdef CONFIG_EmbedSky_TWO_USB_HOST
++#include <asm/arch/regs-gpio.h>
++#endif
+ 
+ #define valid_port(idx) ((idx) == 1 || (idx) == 2)
+ 
+@@ -347,6 +350,15 @@
+ 	struct usb_hcd *hcd = NULL;
+ 	int retval;
+ 
++#ifdef CONFIG_EmbedSky_TWO_USB_HOST
++	printk("Initial EmbedSky TWO USB HOST Driver!\n");
++	unsigned long reg_misccr;
++	reg_misccr = 0;
++	reg_misccr = readl(S3C2410_MISCCR);
++	reg_misccr = reg_misccr | S3C2410_MISCCR_USBHOST;
++	writel(reg_misccr,S3C2410_MISCCR);
++#endif
++
+ 	s3c2410_usb_set_power(dev->dev.platform_data, 1, 1);
+ 	s3c2410_usb_set_power(dev->dev.platform_data, 2, 1);
+ 

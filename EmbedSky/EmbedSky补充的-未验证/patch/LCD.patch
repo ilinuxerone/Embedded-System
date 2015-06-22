@@ -1,0 +1,235 @@
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 13:58:28.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 14:20:21.000000000 +0800
+@@ -114,19 +114,103 @@
+ 
+ 	.type		= S3C2410_LCDCON1_TFT,
+ 
++#if defined(CONFIG_FB_S3C24X0_T240320)
+ 	.width		= 240,
+ 	.height		= 320,
+ 
+-	.pixclock	= 166667, /* HCLK 60 MHz, divisor 10 */
++	.pixclock		= 100000, /* HCLK 100 MHz, divisor 4 */
++	.setclkval		= 0x4,
+ 	.xres		= 240,
+ 	.yres		= 320,
+ 	.bpp		= 16,
+-	.left_margin	= 20,
+-	.right_margin	= 8,
+-	.hsync_len	= 4,
+-	.upper_margin	= 8,
+-	.lower_margin	= 7,
+-	.vsync_len	= 4,
++	.left_margin	= 3,	/* for HFPD*/
++	.right_margin	= 6,	/* for HBPD*/
++	.hsync_len	= 1,	/* for HSPW*/
++	.upper_margin	= 2,	/* for VFPD*/
++	.lower_margin	= 1,	/* for VBPD*/
++	.vsync_len	= 1,	/* for VSPW*/
++
++#elif	defined(CONFIG_FB_S3C24X0_S320240)
++	.width		= 320,
++	.height		= 240,
++
++	.pixclock		= 80000, /* HCLK 100 MHz, divisor 3 */
++	.setclkval		= 0x3,
++	.xres		= 320,
++	.yres		= 240,
++	.bpp		= 16,
++	.left_margin	= 15,	/* for HFPD*/
++	.right_margin	= 5,	/* for HBPD*/
++	.hsync_len	= 8,	/* for HSPW*/
++	.upper_margin	= 5,	/* for VFPD*/
++	.lower_margin	= 3,	/* for VBPD*/
++	.vsync_len	= 15,	/* for VSPW*/
++
++#elif	defined(CONFIG_FB_S3C24X0_W320240)
++	.width		= 320,
++	.height		= 240,
++
++	.pixclock		= 80000, /* HCLK 100 MHz, divisor 3 */
++	.setclkval		= 0x3,
++	.xres		= 320,
++	.yres		= 240,
++	.bpp		= 16,
++	.left_margin	= 28,	/* for HFPD*/
++	.right_margin	= 24,	/* for HBPD*/
++	.hsync_len	= 42,	/* for HSPW*/
++	.upper_margin	= 6,	/* for VFPD*/
++	.lower_margin	= 2,	/* for VBPD*/
++	.vsync_len	= 12,	/* for VSPW*/
++
++#elif	defined(CONFIG_FB_S3C24X0_LCD480272)
++	.width		= 480,
++	.height		= 272,
++
++	.pixclock		= 40000, /* HCLK 100 MHz, divisor 1 */
++	.setclkval		= 0x1,
++	.xres		= 480,
++	.yres		= 272,
++	.bpp		= 16,
++	.left_margin	= 15,	/* for HFPD*/
++	.right_margin	= 5,	/* for HBPD*/
++	.hsync_len	= 35,	/* for HSPW*/
++	.upper_margin	= 4,	/* for VFPD*/
++	.lower_margin	= 2,	/* for VBPD*/
++	.vsync_len	= 8,	/* for VSPW*/
++
++#elif	defined(CONFIG_FB_S3C24X0_TFT640480)
++	.width		= 640,
++	.height		= 480,
++
++	.pixclock		= 40000, /* HCLK 100 MHz, divisor 1 */
++	.setclkval		= 0x1,
++	.xres		= 640,
++	.yres		= 480,
++	.bpp		= 16,
++	.left_margin	= 40,	/* for HFPD*/
++	.right_margin	= 67,	/* for HBPD*/
++	.hsync_len	= 31,	/* for HSPW*/
++	.upper_margin	= 5,	/* for VFPD*/
++	.lower_margin	= 25,	/* for VBPD*/
++	.vsync_len	= 1,	/* for VSPW*/
++
++#elif	defined(CONFIG_FB_S3C24X0_S800480)
++	.width		= 800,
++	.height		= 480,
++
++	.pixclock		= 40000, /* HCLK 100 MHz, divisor 1 */
++	.setclkval		= 0x1,
++	.xres		= 800,
++	.yres		= 480,
++	.bpp		= 16,
++	.left_margin	= 15,	/* for HFPD*/
++	.right_margin	= 47,	/* for HBPD*/
++	.hsync_len	= 95,	/* for HSPW*/
++	.upper_margin	= 9,	/* for VFPD*/
++	.lower_margin	= 5,	/* for VBPD*/
++	.vsync_len	= 1,	/* for VSPW*/
++
++#endif
+ };
+ 
+ static struct s3c2410fb_mach_info smdk2440_fb_info __initdata = {
+@@ -146,7 +230,7 @@
+ 	.gpdup_mask	= 0xffffffff,
+ #endif
+ 
+-	.lpcsel		= ((0xCE6) & ~7) | 1<<4,
++//	.lpcsel		= ((0xCE6) & ~7) | 1<<4,
+ };
+ 
+ static void EmbedSky_udc_pullup(enum s3c2410_udc_cmd_e cmd)
+diff -urNwB linux-2.6.25.8/drivers/video/Kconfig linux-2.6.25.8_EmbedSky/drivers/video/Kconfig
+--- linux-2.6.25.8/drivers/video/Kconfig	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/video/Kconfig	2009-02-03 16:57:44.000000000 +0800
+@@ -1795,8 +1795,8 @@
+ 
+ 	  If unsure, say N.
+ 
+-config FB_S3C2410
+-	tristate "S3C2410 LCD framebuffer support"
++config FB_S3C24X0
++	tristate "S3C24X0 LCD framebuffer support"
+ 	depends on FB && ARCH_S3C2410
+ 	select FB_CFB_FILLRECT
+ 	select FB_CFB_COPYAREA
+@@ -1811,6 +1811,51 @@
+ 	  say M here and read <file:Documentation/kbuild/modules.txt>.
+ 
+ 	  If unsure, say N.
++
++choice
++	prompt "LCD select"
++	depends on FB_S3C24X0
++	help
++	   S3C24x0 LCD size select
++
++config FB_S3C24X0_S320240
++	boolean "3.5 inch 320x240 Samsung LCD"
++	depends on FB_S3C24X0
++	help
++	   3.5 inch 320x240 Samsung LCD
++
++config FB_S3C24X0_W320240
++	boolean "3.5 inch 320x240 WanXin LCD"
++	depends on FB_S3C24X0
++	help
++	   3.5 inch 320x240 WanXin LCD
++
++config FB_S3C24X0_T240320
++	boolean "3.5 inch 240X320 Toshiba LCD"
++	depends on FB_S3C24X0
++	help
++	   3.5 inch 240x320 Toshiba LCD
++
++config FB_S3C24X0_LCD480272
++	boolean "4.3 inch 480X272 CHIMEI LCD"
++	depends on FB_S3C24X0
++	help
++	   4.3 inch 480X272 CHIMEI LCD
++
++config FB_S3C24X0_TFT640480
++	boolean "8.4 inch 640x480 TFT LCD"
++	depends on FB_S3C24X0
++	help
++	   8.4 inch 640x480 TFT LCD
++
++config FB_S3C24X0_S800480
++	boolean "7 inch 800x480 Samsung LCD"
++	depends on FB_S3C24X0
++	help
++	   7 inch 800x480 Samsung LCD
++
++endchoice	  
++	  
+ config FB_S3C2410_DEBUG
+ 	bool "S3C2410 lcd debug messages"
+ 	depends on FB_S3C2410
+diff -urNwB linux-2.6.25.8/drivers/video/Makefile linux-2.6.25.8_EmbedSky/drivers/video/Makefile
+--- linux-2.6.25.8/drivers/video/Makefile	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/video/Makefile	2009-02-04 00:53:18.000000000 +0800
+@@ -106,7 +106,7 @@
+ obj-$(CONFIG_FB_METRONOME)        += metronomefb.o
+ obj-$(CONFIG_FB_S1D13XXX)	  += s1d13xxxfb.o
+ obj-$(CONFIG_FB_IMX)              += imxfb.o
+-obj-$(CONFIG_FB_S3C2410)	  += s3c2410fb.o
++obj-$(CONFIG_FB_S3C24X0)	  += s3c2410fb.o
+ obj-$(CONFIG_FB_PNX4008_DUM)	  += pnx4008/
+ obj-$(CONFIG_FB_PNX4008_DUM_RGB)  += pnx4008/
+ obj-$(CONFIG_FB_IBM_GXT4500)	  += gxt4500.o
+diff -urNwB linux-2.6.25.8/drivers/video/s3c2410fb.c linux-2.6.25.8_EmbedSky/drivers/video/s3c2410fb.c
+--- linux-2.6.25.8/drivers/video/s3c2410fb.c	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/drivers/video/s3c2410fb.c	2009-02-28 14:19:44.000000000 +0800
+@@ -428,6 +428,9 @@
+ 	void __iomem *regs = fbi->io;
+ 	int type = fbi->regs.lcdcon1 & S3C2410_LCDCON1_TFT;
+ 	struct fb_var_screeninfo *var = &info->var;
++	struct s3c2410fb_mach_info *mach_info = fbi->dev->platform_data;
++	struct s3c2410fb_display *default_display = mach_info->displays +
++						    mach_info->default_display;
+ 	int clkdiv = s3c2410fb_calc_pixclk(fbi, var->pixclock) / 2;
+ 
+ 	dprintk("%s: var->xres  = %d\n", __FUNCTION__, var->xres);
+@@ -445,7 +448,8 @@
+ 			clkdiv = 2;
+ 	}
+ 
+-	fbi->regs.lcdcon1 |=  S3C2410_LCDCON1_CLKVAL(clkdiv);
++//	fbi->regs.lcdcon1 |=  S3C2410_LCDCON1_CLKVAL(clkdiv);
++	fbi->regs.lcdcon1 |=  S3C2410_LCDCON1_CLKVAL(default_display->setclkval);
+ 
+ 	/* write new registers */
+ 
+diff -urNwB linux-2.6.25.8/include/asm-arm/arch-s3c2410/fb.h linux-2.6.25.8_EmbedSky/include/asm-arm/arch-s3c2410/fb.h
+--- linux-2.6.25.8/include/asm-arm/arch-s3c2410/fb.h	2008-06-22 13:25:26.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/include/asm-arm/arch-s3c2410/fb.h	2009-02-04 00:58:26.000000000 +0800
+@@ -37,6 +37,7 @@
+ 	unsigned short bpp;
+ 
+ 	unsigned pixclock;		/* pixclock in picoseconds */
++	unsigned setclkval;		/* clkval */
+ 	unsigned short left_margin;  /* value in pixels (TFT) or HCLKs (STN) */
+ 	unsigned short right_margin; /* value in pixels (TFT) or HCLKs (STN) */
+ 	unsigned short hsync_len;    /* value in pixels (TFT) or HCLKs (STN) */

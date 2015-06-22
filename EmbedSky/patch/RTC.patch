@@ -1,0 +1,11 @@
+diff -urNwB linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c
+--- linux-2.6.25.8/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 14:59:44.000000000 +0800
++++ linux-2.6.25.8_EmbedSky/arch/arm/mach-s3c2440/mach-smdk2440.c	2009-02-28 15:07:22.000000000 +0800
+@@ -276,6 +276,7 @@
+ 	&s3c_device_iis,
+ 	&s3c_device_usbgadget,
+ 	&s3c_device_ts,
++	&s3c_device_rtc,
+ };
+ 
+ static void __init smdk2440_map_io(void)
